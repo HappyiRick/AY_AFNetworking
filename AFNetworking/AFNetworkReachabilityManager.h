@@ -25,10 +25,10 @@
 #import <SystemConfiguration/SystemConfiguration.h>
 
 typedef NS_ENUM(NSInteger, AFNetworkReachabilityStatus) {
-    AFNetworkReachabilityStatusUnknown          = -1,
-    AFNetworkReachabilityStatusNotReachable     = 0,
-    AFNetworkReachabilityStatusReachableViaWWAN = 1,
-    AFNetworkReachabilityStatusReachableViaWiFi = 2,
+    AFNetworkReachabilityStatusUnknown          = -1, // 网络状态未知
+    AFNetworkReachabilityStatusNotReachable     = 0, // 网络状态无连接
+    AFNetworkReachabilityStatusReachableViaWWAN = 1, // 网络状态为蜂窝移动网络连接
+    AFNetworkReachabilityStatusReachableViaWiFi = 2, // 网络状态为无线局域网连接
 };
 
 NS_ASSUME_NONNULL_BEGIN

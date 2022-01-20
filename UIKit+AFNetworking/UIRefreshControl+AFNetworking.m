@@ -28,9 +28,11 @@
 #import "AFURLSessionManager.h"
 
 @interface AFRefreshControlNotificationObserver : NSObject
+/// 保存要绑定task的刷新控件
 @property (readonly, nonatomic, weak) UIRefreshControl *refreshControl;
+/// 以指定刷新控件初始化的方法
 - (instancetype)initWithActivityRefreshControl:(UIRefreshControl *)refreshControl;
-
+/// 为UIRefreshControl绑定指定的task
 - (void)setRefreshingWithStateOfTask:(NSURLSessionTask *)task;
 
 @end
@@ -38,15 +40,20 @@
 @implementation UIRefreshControl (AFNetworking)
 
 - (AFRefreshControlNotificationObserver *)af_notificationObserver {
+    // 先通过关联对象获取为分类创建的属性
     AFRefreshControlNotificationObserver *notificationObserver = objc_getAssociatedObject(self, @selector(af_notificationObserver));
+    // 如果属性为空
     if (notificationObserver == nil) {
+        // 创建刷新控件通知观察者对象
         notificationObserver = [[AFRefreshControlNotificationObserver alloc] initWithActivityRefreshControl:self];
+        // 通过关联对象将创建的对象保存到属性中
         objc_setAssociatedObject(self, @selector(af_notificationObserver), notificationObserver, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     return notificationObserver;
 }
 
 - (void)setRefreshingWithStateOfTask:(NSURLSessionTask *)task {
+    // 获取到刷新控件通知观察者对象并为之绑定task
     [[self af_notificationObserver] setRefreshingWithStateOfTask:task];
 }
 
@@ -58,6 +65,7 @@
 {
     self = [super init];
     if (self) {
+        // 保存控件
         _refreshControl = refreshControl;
     }
     return self;
@@ -72,13 +80,15 @@
 
     if (task) {
         UIRefreshControl *refreshControl = self.refreshControl;
+        // 如果任务状态是正在运行中
         if (task.state == NSURLSessionTaskStateRunning) {
             [refreshControl beginRefreshing];
-
+            // 注册通知监听task的开始、完成和暂停
             [notificationCenter addObserver:self selector:@selector(af_beginRefreshing) name:AFNetworkingTaskDidResumeNotification object:task];
             [notificationCenter addObserver:self selector:@selector(af_endRefreshing) name:AFNetworkingTaskDidCompleteNotification object:task];
             [notificationCenter addObserver:self selector:@selector(af_endRefreshing) name:AFNetworkingTaskDidSuspendNotification object:task];
         } else {
+            // 刷新控件停止刷新
             [refreshControl endRefreshing];
         }
     }
@@ -99,7 +109,7 @@
 }
 
 #pragma mark -
-
+// 在dealloc中移除刷新
 - (void)dealloc {
     NSNotificationCenter *notificationCenter = [NSNotificationCenter defaultCenter];
     

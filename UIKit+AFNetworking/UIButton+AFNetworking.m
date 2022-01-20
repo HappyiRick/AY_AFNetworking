@@ -34,12 +34,13 @@
 @implementation UIButton (_AFNetworking)
 
 #pragma mark -
+// image相关
+static char AFImageDownloadReceiptNormal;  // 普通
+static char AFImageDownloadReceiptHighlighted; // 高亮
+static char AFImageDownloadReceiptSelected; // 已选
+static char AFImageDownloadReceiptDisabled; // 禁用
 
-static char AFImageDownloadReceiptNormal;
-static char AFImageDownloadReceiptHighlighted;
-static char AFImageDownloadReceiptSelected;
-static char AFImageDownloadReceiptDisabled;
-
+// 通过传入的控件状态返回对应的静态字符
 static const char * af_imageDownloadReceiptKeyForState(UIControlState state) {
     switch (state) {
         case UIControlStateHighlighted:
@@ -54,10 +55,12 @@ static const char * af_imageDownloadReceiptKeyForState(UIControlState state) {
     }
 }
 
+// 通过Runtime的关联对象为分类添加属性的getter
 - (AFImageDownloadReceipt *)af_imageDownloadReceiptForState:(UIControlState)state {
     return (AFImageDownloadReceipt *)objc_getAssociatedObject(self, af_imageDownloadReceiptKeyForState(state));
 }
 
+// 通过Runtime的关联对象为分类添加属性的setter
 - (void)af_setImageDownloadReceipt:(AFImageDownloadReceipt *)imageDownloadReceipt
                            forState:(UIControlState)state
 {
@@ -65,7 +68,7 @@ static const char * af_imageDownloadReceiptKeyForState(UIControlState state) {
 }
 
 #pragma mark -
-
+// 背景图片相关
 static char AFBackgroundImageDownloadReceiptNormal;
 static char AFBackgroundImageDownloadReceiptHighlighted;
 static char AFBackgroundImageDownloadReceiptSelected;
@@ -101,6 +104,7 @@ static const char * af_backgroundImageDownloadReceiptKeyForState(UIControlState 
 
 @implementation UIButton (AFNetworking)
 
+// 通过关联对象实现getter 和 setter 方法
 + (AFImageDownloader *)sharedImageDownloader {
 
     return objc_getAssociatedObject([UIButton class], @selector(sharedImageDownloader)) ?: [AFImageDownloader defaultInstance];
@@ -134,29 +138,37 @@ static const char * af_backgroundImageDownloadReceiptKeyForState(UIControlState 
                  success:(nullable void (^)(NSURLRequest *request, NSHTTPURLResponse * _Nullable response, UIImage *image))success
                  failure:(nullable void (^)(NSURLRequest *request, NSHTTPURLResponse * _Nullable response, NSError *error))failure
 {
+    // 如果这个网络请求正在进行中就不重复执行
     if ([self isActiveTaskURLEqualToURLRequest:urlRequest forState:state]) {
         return;
     }
-
+    
+    // 取消掉这个状态的图片下载任务
     [self cancelImageDownloadTaskForState:state];
-
+    // 实例化图片下载器
     AFImageDownloader *downloader = [[self class] sharedImageDownloader];
+    // 获取到图片缓存对象
     id <AFImageRequestCache> imageCache = downloader.imageCache;
 
     //Use the image from the image cache if it exists
+    // 获取到缓存图片
     UIImage *cachedImage = [imageCache imageforRequest:urlRequest withAdditionalIdentifier:nil];
+    // 如果有缓存
     if (cachedImage) {
+        // 如果设置了成功回调block就调用, 否则就为按钮设置图片
         if (success) {
             success(urlRequest, nil, cachedImage);
         } else {
             [self setImage:cachedImage forState:state];
         }
         [self af_setImageDownloadReceipt:nil forState:state];
+    // 如果没有缓存
     } else {
+        // 如果有占位图先设置占位图
         if (placeholderImage) {
             [self setImage:placeholderImage forState:state];
         }
-
+        // 开始下载
         __weak __typeof(self)weakSelf = self;
         NSUUID *downloadID = [NSUUID UUID];
         AFImageDownloadReceipt *receipt;
@@ -164,27 +176,33 @@ static const char * af_backgroundImageDownloadReceiptKeyForState(UIControlState 
                    downloadImageForURLRequest:urlRequest
                    withReceiptID:downloadID
                    success:^(NSURLRequest * _Nonnull request, NSHTTPURLResponse * _Nullable response, UIImage * _Nonnull responseObject) {
+                        // 如果是当前按钮的下载回调
                        __strong __typeof(weakSelf)strongSelf = weakSelf;
                        if ([[strongSelf af_imageDownloadReceiptForState:state].receiptID isEqual:downloadID]) {
+                           // 如果设置了成功回调block就调用, 否则就为按钮设置图片
                            if (success) {
                                success(request, response, responseObject);
                            } else if (responseObject) {
                                [strongSelf setImage:responseObject forState:state];
                            }
+                           // 将保存下载封装对象的属性置nil
                            [strongSelf af_setImageDownloadReceipt:nil forState:state];
                        }
 
                    }
                    failure:^(NSURLRequest * _Nonnull request, NSHTTPURLResponse * _Nullable response, NSError * _Nonnull error) {
                        __strong __typeof(weakSelf)strongSelf = weakSelf;
+                        // 如果是当前按钮的下载回调
                        if ([[strongSelf af_imageDownloadReceiptForState:state].receiptID isEqual:downloadID]) {
+                           // 失败回调block
                            if (failure) {
                                failure(request, response, error);
                            }
+                           // 将保存下载封装对象的属性置nil
                            [strongSelf  af_setImageDownloadReceipt:nil forState:state];
                        }
                    }];
-
+        // 用分类的属性保存图片下载封装对象
         [self af_setImageDownloadReceipt:receipt forState:state];
     }
 }
@@ -213,29 +231,35 @@ static const char * af_backgroundImageDownloadReceiptKeyForState(UIControlState 
                            success:(nullable void (^)(NSURLRequest *request, NSHTTPURLResponse * _Nullable response, UIImage *image))success
                            failure:(nullable void (^)(NSURLRequest *request, NSHTTPURLResponse * _Nullable response, NSError *error))failure
 {
+    // 如果正在下载则直接中止
     if ([self isActiveBackgroundTaskURLEqualToURLRequest:urlRequest forState:state]) {
         return;
     }
-
+    // 取消当前状态的背景图片下载任务
     [self cancelBackgroundImageDownloadTaskForState:state];
-
+    // 图片下载器实例
     AFImageDownloader *downloader = [[self class] sharedImageDownloader];
+    // 获取到图片缓存对象
     id <AFImageRequestCache> imageCache = downloader.imageCache;
-
+    // 获取到缓存图片
     //Use the image from the image cache if it exists
     UIImage *cachedImage = [imageCache imageforRequest:urlRequest withAdditionalIdentifier:nil];
+    // 如果有缓存
     if (cachedImage) {
+        // 如果设置了成功回调block就调用, 否则就为按钮设置图片
         if (success) {
             success(urlRequest, nil, cachedImage);
         } else {
             [self setBackgroundImage:cachedImage forState:state];
         }
         [self af_setBackgroundImageDownloadReceipt:nil forState:state];
+    // 如果没有缓存
     } else {
+        // 如果有占位图先设置占位图
         if (placeholderImage) {
             [self setBackgroundImage:placeholderImage forState:state];
         }
-
+        // 开始下载
         __weak __typeof(self)weakSelf = self;
         NSUUID *downloadID = [NSUUID UUID];
         AFImageDownloadReceipt *receipt;
@@ -244,26 +268,31 @@ static const char * af_backgroundImageDownloadReceiptKeyForState(UIControlState 
                    withReceiptID:downloadID
                    success:^(NSURLRequest * _Nonnull request, NSHTTPURLResponse * _Nullable response, UIImage * _Nonnull responseObject) {
                        __strong __typeof(weakSelf)strongSelf = weakSelf;
+                        // 如果设置了成功回调block就调用, 否则就为按钮设置图片
                        if ([[strongSelf af_backgroundImageDownloadReceiptForState:state].receiptID isEqual:downloadID]) {
                            if (success) {
                                success(request, response, responseObject);
                            } else if (responseObject) {
                                [strongSelf setBackgroundImage:responseObject forState:state];
                            }
+                           // 将保存下载封装对象的属性置nil
                            [strongSelf af_setBackgroundImageDownloadReceipt:nil forState:state];
                        }
 
                    }
                    failure:^(NSURLRequest * _Nonnull request, NSHTTPURLResponse * _Nullable response, NSError * _Nonnull error) {
                        __strong __typeof(weakSelf)strongSelf = weakSelf;
+                        // 如果是当前按钮的下载回调
                        if ([[strongSelf af_backgroundImageDownloadReceiptForState:state].receiptID isEqual:downloadID]) {
+                           // 失败回调block
                            if (failure) {
                                failure(request, response, error);
                            }
+                           // 将保存下载封装对象的属性置nil
                            [strongSelf  af_setBackgroundImageDownloadReceipt:nil forState:state];
                        }
                    }];
-
+        // 用分类的属性保存图片下载封装对象
         [self af_setBackgroundImageDownloadReceipt:receipt forState:state];
     }
 }
@@ -271,28 +300,40 @@ static const char * af_backgroundImageDownloadReceiptKeyForState(UIControlState 
 #pragma mark -
 
 - (void)cancelImageDownloadTaskForState:(UIControlState)state {
+    // 通过状态获取到图片下载封装对象
     AFImageDownloadReceipt *receipt = [self af_imageDownloadReceiptForState:state];
     if (receipt != nil) {
+        // 根据下载封装对象取消对应的图片下载任务
         [[self.class sharedImageDownloader] cancelTaskForImageDownloadReceipt:receipt];
+        // 把保存图片下载封装对象的属性置nil
         [self af_setImageDownloadReceipt:nil forState:state];
     }
 }
 
 - (void)cancelBackgroundImageDownloadTaskForState:(UIControlState)state {
+    // 通过状态获取到图片下载封装对象
     AFImageDownloadReceipt *receipt = [self af_backgroundImageDownloadReceiptForState:state];
     if (receipt != nil) {
+        // 根据下载封装对象取消对应的图片下载任务
         [[self.class sharedImageDownloader] cancelTaskForImageDownloadReceipt:receipt];
+        // 把保存图片下载封装对象的属性置nil
         [self af_setBackgroundImageDownloadReceipt:nil forState:state];
     }
 }
 
+/// 判断图片下载请求是否已经正在进行中
 - (BOOL)isActiveTaskURLEqualToURLRequest:(NSURLRequest *)urlRequest forState:(UIControlState)state {
+    // 获取图片下载封装对象
     AFImageDownloadReceipt *receipt = [self af_imageDownloadReceiptForState:state];
+    // 根据两者的谅解是否相同进行比较
     return [receipt.task.originalRequest.URL.absoluteString isEqualToString:urlRequest.URL.absoluteString];
 }
 
+/// 判断背景图片下载请求是否已经正在进行中
 - (BOOL)isActiveBackgroundTaskURLEqualToURLRequest:(NSURLRequest *)urlRequest forState:(UIControlState)state {
+    // 获取图片下载封装对象
     AFImageDownloadReceipt *receipt = [self af_backgroundImageDownloadReceiptForState:state];
+    // 根据两者的谅解是否相同进行比较
     return [receipt.task.originalRequest.URL.absoluteString isEqualToString:urlRequest.URL.absoluteString];
 }
 

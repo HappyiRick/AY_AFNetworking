@@ -423,7 +423,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setDidFinishEventsForBackgroundURLSessionBlock:(nullable void (^)(NSURLSession *session))block AF_API_UNAVAILABLE(macos);
 
 ///-----------------------------------------------
-/// @name Setting Download Task Delegate Callbacks
+/// @name Setting Download Task Delreegate Callbacks
 ///-----------------------------------------------
 
 /**
